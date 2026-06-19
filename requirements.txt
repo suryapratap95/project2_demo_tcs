@@ -1,0 +1,10 @@
+langchain
+langchain_core
+lagnchain-openai
+pydantic
+fastapi
+uvicorn
+chromedb
+dotenv
+streamlit
+langsmith
