@@ -1,0 +1,13 @@
+payment_mode,transaction_slab,charge,notes
+UPI,"Any amount, person-to-person",Free,No charges under NPCI UPI guidelines
+UPI,"Any amount, person-to-merchant (non-RuPay credit card)",Free,No charges for customers
+NEFT,"Up to Rs. 10,000",Rs. 2 + GST,Online banking; free via mobile/net banking for individual savings accounts
+NEFT,"Rs. 10,001 to Rs. 1,00,000",Rs. 4 + GST,Branch-initiated transfers
+NEFT,"Rs. 1,00,001 to Rs. 2,00,000",Rs. 14 + GST,Branch-initiated transfers
+NEFT,"Above Rs. 2,00,000",Rs. 24 + GST,Branch-initiated transfers
+RTGS,"Rs. 2,00,000 to Rs. 5,00,000",Rs. 24 + GST,Branch-initiated; free via net/mobile banking
+RTGS,"Above Rs. 5,00,000",Rs. 49 + GST,Branch-initiated; free via net/mobile banking
+IMPS,"Up to Rs. 1,00,000",Rs. 5 + GST,"Instant transfer, 24x7 including holidays"
+IMPS,"Rs. 1,00,001 to Rs. 5,00,000",Rs. 15 + GST,"Instant transfer, 24x7 including holidays"
+Card Dispute Chargeback,Any amount,Free,No fee is charged to the customer for filing a dispute
+ATM Withdrawal (own bank),Beyond 5 free transactions/month,Rs. 21 + GST,Metro branches; 3 free transactions at other bank ATMs

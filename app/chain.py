@@ -1,54 +1,78 @@
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import FewShotChatMessagePromptTemplate
-from .model import IntentResult
-from dotenv import load_dotenv
+import time
 
-from .prompts import FEW_SHOT_EXAMPLES, SYSTEM_PROMT
-from .tools import classify_intent
+from dotenv import load_dotenv
 
 load_dotenv()
 
+from langchain.agents import create_agent
+from langchain_core.messages import AIMessage, HumanMessage
 
-llm = ChatOpenAI(model ="gpt-4o-mini", temperature=0.1)
+from . import cache, memory
+from .llm import get_llm
+from .logging_utils import get_logger, log_event
+from .prompts import SYSTEM_PROMT
+from .tools import classify_intent, knowledge_retrieval
 
-example_prompt = ChatPromptTemplate.from_messages([("human", "{input}"), ("ai", "{output}")])
+logger = get_logger("chain")
 
+llm = get_llm()
 
-few_shot = FewShotChatMessagePromptTemplate(
-    example_prompt=example_prompt,
-    examples=FEW_SHOT_EXAMPLES,
+agent = create_agent(
+    model=llm,
+    tools=[classify_intent, knowledge_retrieval],
+    system_prompt=SYSTEM_PROMT,
 )
 
 
-strcutured_llm = llm.with_structured_output(IntentResult)
+def _history_to_messages(history: list[dict]) -> list:
+    messages = []
+    for turn in history:
+        if turn["role"] == "user":
+            messages.append(HumanMessage(content=turn["content"]))
+        else:
+            messages.append(AIMessage(content=turn["content"]))
+    return messages
 
-prompt =ChatPromptTemplate.from_messages([
-    ("system", SYSTEM_PROMT),
-    few_shot,
-    ("human", "{input}"),
-])
 
-strcutured_prompt = ChatPromptTemplate.from_template("Classify this banking message: {message}")
+def chat(session_id: str, message: str) -> tuple[str, bool]:
+    """Run one turn of the agent. Returns (response_text, cache_hit)."""
+    start = time.monotonic()
 
+    cached_response = cache.get_cached_response(message)
+    if cached_response:
+        memory.append_turn(session_id, "user", message)
+        memory.append_turn(session_id, "assistant", cached_response)
+        log_event(logger, "chat cache hit", session_id=session_id, customer_message=message)
+        return cached_response, True
 
-strcutured_chain = strcutured_prompt | strcutured_llm
+    history = memory.get_history(session_id)
+    input_messages = _history_to_messages(history) + [HumanMessage(content=message)]
 
-# result = strcutured_chain.invoke({"message": "I was charged twice for 1 card transaction"})
-# print("Structured Chain Result:", result)
+    result = agent.invoke(
+        {"messages": input_messages},
+        config={"metadata": {"session_id": session_id}},
+    )
 
-# Bind the tool to the LLM
-llm_with_tools = llm.bind_tools([classify_intent])
-# tool_result = llm_with_tools.invoke("i get invalid fees charge on my card")
-# print("Tool Call Result:", tool_result.tool_calls)
+    output_messages = result["messages"]
+    tools_called = [
+        tool_call["name"]
+        for msg in output_messages
+        if isinstance(msg, AIMessage)
+        for tool_call in (msg.tool_calls or [])
+    ]
+    final_message = output_messages[-1]
+    response_text = final_message.content
 
-parser = StrOutputParser()
+    memory.append_turn(session_id, "user", message)
+    memory.append_turn(session_id, "assistant", response_text)
+    cache.set_cached_response(message, response_text)
 
-chain = prompt | llm | parser
+    log_event(
+        logger,
+        "chat completed",
+        session_id=session_id,
+        tools_called=tools_called,
+        latency_ms=round((time.monotonic() - start) * 1000, 1),
+    )
 
-def chat(session_id: str, message: str) -> str:
-    return chain.invoke({"input": message})
-
-# response = chain.invoke({"input": " Tell me about yourelf"})
-# print("Normal Chain Result:", response)
+    return response_text, False

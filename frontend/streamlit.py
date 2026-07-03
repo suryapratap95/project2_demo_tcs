@@ -3,8 +3,9 @@ import random
 import requests
 import time
 import uuid
+import os
 
-FASTAPI_URL = "http://localhost:8000"
+FASTAPI_URL = os.environ.get("FASTAPI_URL", "http://localhost:8000")
 
 
 # Streamed response emulator
