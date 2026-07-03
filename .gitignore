@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 data/chroma_db/
 eval/results/
+/.claude
