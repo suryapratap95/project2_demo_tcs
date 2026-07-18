@@ -1,12 +1,18 @@
+"""RAG pipeline with role-based access control.
+
+Orchestrates: multi-query retrieve -> role filter -> rerank -> context -> LLM answer.
+"""
 import time
 
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 
 from ..logging_utils import get_logger, log_event
 from ..model import RAGAnswer, RetrievedChunk
 from .query_transform import get_multi_query_retriever
 from .reranker import rerank
+from .role_filter import filter_documents_by_role
 
 logger = get_logger("rag.pipeline")
 
@@ -31,9 +37,19 @@ class RAGPipeline:
         self._retriever = get_multi_query_retriever(llm, k=retrieve_k)
         self._chain = ANSWER_PROMPT | llm
 
-    def answer(self, query: str) -> RAGAnswer:
+    def answer(self, query: str, user_role: str = "customer") -> RAGAnswer:
         start = time.monotonic()
         docs = self._retriever.invoke(query)
+
+        docs = filter_documents_by_role(docs, user_role)
+
+        if not docs:
+            return RAGAnswer(
+                answer="I don't have access to information relevant to your query at your current access level.",
+                citations=[],
+                contexts=[],
+            )
+
         reranked = rerank(query, docs, top_n=self._rerank_top_n)
 
         contexts = [
@@ -52,6 +68,7 @@ class RAGPipeline:
             logger,
             "rag pipeline answered query",
             query=query,
+            user_role=user_role,
             retrieved_count=len(docs),
             reranked_count=len(reranked),
             sources=citations,

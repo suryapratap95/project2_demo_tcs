@@ -23,3 +23,8 @@ lxml
 fpdf2
 
 upstash-redis
+
+# New: MCP, YAML prompts, drift detection
+mcp
+pyyaml
+numpy

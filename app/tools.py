@@ -3,13 +3,11 @@ import re
 from functools import lru_cache
 
 from langchain_core.tools import tool
+from langchain_core.callbacks import CallbackManagerForToolRun
 
 from .llm import get_llm
 from .model import IntentResult
 
-# Deterministic (non-LLM) keyword rules, checked in priority order so that
-# more specific/urgent intents (disputes, complaints) win over generic
-# account questions when a message matches multiple categories.
 _INTENT_RULES: list[tuple[str, list[str], str]] = [
     (
         "card_dispute",
@@ -83,9 +81,6 @@ def _get_rag_pipeline():
     return RAGPipeline(llm=get_llm())
 
 
-# Built eagerly at import time (main thread) rather than lazily on first
-# tool call: chromadb's PersistentClient registry is not safe to populate
-# from the worker thread LangGraph's ToolNode executes sync tools in.
 _get_rag_pipeline()
 
 
@@ -106,3 +101,48 @@ def knowledge_retrieval(query: str) -> str:
     """
     rag_answer = _get_rag_pipeline().answer(query)
     return json.dumps({"answer": rag_answer.answer, "citations": rag_answer.citations})
+
+
+@tool
+def hitl_approval(action_type: str, description: str) -> str:
+    """Request human-in-the-loop approval for a high-risk action.
+
+    Call this when the customer requests:
+    - Account closure
+    - Large fund transfer (above Rs 50,000)
+    - Card blocking/unblocking
+    - Loan foreclosure
+    - Any irreversible financial action
+
+    The system will pause and wait for a human supervisor to approve or
+    reject the action. Returns the decision result as JSON.
+
+    Args:
+        action_type: Type of action requiring approval (e.g. "account_closure", "large_transfer", "card_block")
+        description: Brief description of what the customer is requesting
+    """
+    from .hitl import create_approval_request, wait_for_approval
+
+    request = create_approval_request(
+        session_id="current",
+        action_type=action_type,
+        description=description,
+    )
+    decision = wait_for_approval(request["request_id"], timeout=60)
+
+    if decision["decision"] == "approved":
+        return json.dumps({
+            "status": "approved",
+            "message": f"Action '{action_type}' has been approved by supervisor. Proceeding with: {description}",
+            "approver": decision.get("approver", "supervisor"),
+        })
+    elif decision["decision"] == "rejected":
+        return json.dumps({
+            "status": "rejected",
+            "message": f"Action '{action_type}' was rejected by supervisor. Reason: {decision.get('reason', 'Not specified')}",
+        })
+    else:
+        return json.dumps({
+            "status": "timeout",
+            "message": "No supervisor response received within the time limit. Please try again or contact a branch representative.",
+        })

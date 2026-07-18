@@ -1,0 +1,30 @@
+version: "1.0"
+name: classification_prompt
+description: "Prompt for LLM-based intent classification fallback (not used by default - deterministic classifier is primary)"
+author: "finbot-team"
+updated: "2024-12-01"
+tags:
+  - classification
+  - intent
+
+template: |
+  Classify the following customer message into one of these banking intent categories:
+  - account_inquiry: balance checks, statements, account details, FD queries
+  - card_dispute: unauthorized charges, double charges, card fraud, chargebacks
+  - loan_query: loan eligibility, EMI, interest rates, prepayment
+  - complaint: general dissatisfaction, escalation requests, unresolved issues
+  - general_faq: fees, charges, policies, procedures not fitting above categories
+
+  Respond with JSON: {"intent": "<category>", "confidence": <0-1>, "routing": "<team>"}
+
+  Customer message: {message}
+
+variables:
+  - message
+
+routing_map:
+  card_dispute: card_disputes_team
+  complaint: grievance_redressal
+  loan_query: loans_team
+  account_inquiry: self_service
+  general_faq: general_support

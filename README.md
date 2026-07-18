@@ -1,119 +1,340 @@
-# Langchain-BOT 
+# FinBot – AI Banking Assistant
 
-A LangChain-based banking assistant with a tool-calling agent (deterministic
-intent classification + RAG-backed knowledge retrieval), Redis-backed
-session memory and response caching, a FastAPI backend, and a Streamlit
-frontend.
+FinBot is a production-oriented AI banking assistant built with LangChain, FastAPI, and Streamlit. The project demonstrates how to build secure, enterprise-grade conversational AI using Retrieval-Augmented Generation (RAG), tool calling, Human-in-the-Loop approvals, and multi-agent orchestration.
 
+---
 
-## 1. Create and activate a virtual environment
+## Features
+
+### AI Agent
+- LangChain agent with tool calling
+- Deterministic intent classification
+- Retrieval-Augmented Generation (RAG)
+- Context-aware conversations
+- Session-based memory
+
+### Retrieval Pipeline
+- Hybrid retrieval (Dense + BM25)
+- Cross-encoder reranking
+- Multi-query expansion
+- Role-based document filtering
+- Persistent Chroma vector database
+
+### Enterprise Capabilities
+- Human-in-the-Loop approval workflow
+- Prompt versioning using YAML
+- Redis-backed caching
+- Redis conversation memory
+- Structured logging
+- LangSmith tracing support
+
+### Multi-Agent Architecture
+Specialized agents handle different banking domains including:
+
+- Loan Services
+- Customer Disputes
+- Compliance
+- General Banking Support
+
+### APIs
+- FastAPI backend
+- OpenAPI (Swagger) documentation
+- MCP (Model Context Protocol) server for tool interoperability
+
+### Evaluation
+- Automated RAG evaluation
+- Regression testing
+- Retrieval quality measurement
+- Embedding drift detection
+- HTML evaluation reports
+
+---
+
+# Technology Stack
+
+| Layer | Technology |
+|--------|------------|
+| Backend | FastAPI |
+| Frontend | Streamlit |
+| LLM Framework | LangChain (LCEL) |
+| Vector Database | ChromaDB |
+| Embeddings | OpenAI Embeddings |
+| Memory | Redis (Upstash) |
+| Observability | LangSmith |
+| Evaluation | Custom evaluation framework |
+| MCP | Model Context Protocol |
+
+---
+
+# Getting Started
+
+## 1. Clone the repository
+
+```bash
+git clone <repository-url>
+
+cd finbot
+```
+
+---
+
+## 2. Create a virtual environment
+
+### macOS / Linux
 
 ```bash
 python3 -m venv venv
-
-# macOS/Linux
 source venv/bin/activate
-
-# Windows (PowerShell)
-venv\Scripts\Activate.ps1
 ```
 
-## 2. Install dependencies
+### Windows
+
+```powershell
+python -m venv venv
+
+venv\Scripts\activate
+```
+
+---
+
+## 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 3. Configure environment variables
+---
 
-Copy the example file and fill in real values:
+## 4. Configure environment variables
+
+Create a `.env` file.
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and set:
+Update it with your credentials.
 
-OPENAI_API_KEY="A"
+```env
+OPENAI_API_KEY=your-openai-key
+
 LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=""
-LANGSMITH_PROJECT="banking-ai-assistant"
-UPSTASH_REDIS_REST_URL="httpstash.io"
-UPSTASH_REDIS_REST_TOKEN="gQAAAAAAU0ZDk4NjlmOA"
-CHROMA_PERSIST_DIR="./data/chroma_db"
-KNOWLEDGE_BASE_DIR="./data/knowledge_base"
+LANGSMITH_API_KEY=your-langsmith-key
+LANGSMITH_PROJECT=banking-ai-assistant
 
+UPSTASH_REDIS_REST_URL=https://your-upstash-instance.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your-upstash-token
+```
 
-## 4. Ingest documents into the vector store
+---
 
-This loads the knowledge base, chunks it, embeds it with OpenAI, and
-upserts it into a persistent Chroma collection. **Run this once before
-starting the API** (and again any time the knowledge base changes):
+## 5. Build the knowledge base
+
+Before starting the application, ingest the banking documents into the vector database.
 
 ```bash
 python -m app.rag.ingest
 ```
 
-## 5. Run the backend API
+This process:
+
+- Loads documents
+- Splits them into chunks
+- Generates embeddings
+- Stores vectors in ChromaDB
+
+---
+
+# Running the Application
+
+## Start the backend
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-- `GET /health` — checks vector store + Redis connectivity
-- `POST /chat` — `{"message": "...", "session_id": "..."}` → agent response
-- `POST /reset` — `{"session_id": "..."}` → clears that session's memory
+Once the server is running:
 
-API docs: http://localhost:8000/docs
+```
+http://localhost:8000
+```
 
-## 6. Run the Streamlit frontend
+Swagger documentation:
 
-In a second terminal (with the venv activated):
+```
+http://localhost:8000/docs
+```
+
+---
+
+## Start the frontend
 
 ```bash
 streamlit run frontend/streamlit.py
 ```
 
-Open http://localhost:8501 and chat with the bot. It talks to the API at
-`FASTAPI_URL` (defaults to `http://localhost:8000`).
+The Streamlit interface provides:
 
-## 7. Run the evaluation harness
+- Interactive chat
+- User role selection
+- HITL approval dashboard
+- Session reset
 
-Measures retrieval quality, answer quality (Ragas), and end-to-end quality
-(LLM-judge) against a fixed QA dataset grounded in the sample knowledge
-base. Requires the vector store to already be ingested (step 5).
+---
+
+## Start the MCP Server
+
+To expose FinBot tools using the Model Context Protocol:
+
+```bash
+python -m app.mcp_server.server
+```
+
+Configure compatible MCP clients using:
+
+```
+mcp_config.json
+```
+
+---
+
+# API Endpoints
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/health` | Service health check |
+| POST | `/chat` | Chat with FinBot |
+| POST | `/reset` | Clear session history |
+| GET | `/hitl/pending/{session_id}` | Pending approvals |
+| POST | `/hitl/decide` | Approve or reject requests |
+| GET | `/prompts` | List prompt templates |
+| GET | `/prompts/{name}` | Retrieve prompt |
+| POST | `/prompts/reload` | Reload prompts without restart |
+
+---
+
+# Available Tools
+
+The agent can invoke several tools depending on user intent.
+
+| Tool | Purpose |
+|------|----------|
+| classify_intent | Classifies user requests |
+| knowledge_retrieval | Retrieves information from the knowledge base |
+| calculate_emi | Calculates loan EMI |
+| check_loan_eligibility | Performs eligibility checks |
+
+---
+
+# Prompt Management
+
+Prompt templates are stored as YAML files under the `prompts/` directory.
+
+Example:
+
+```yaml
+version: "2.0"
+
+name: finbot_system_prompt
+
+author: finbot-team
+
+updated: "2024-12-01"
+
+template: |
+  You are FinBot...
+```
+
+Advantages of YAML-based prompts:
+
+- Version controlled
+- Easy to review in Git
+- Hot reload support
+- No application restart required
+
+Reload prompts:
+
+```http
+POST /prompts/reload
+```
+
+---
+
+# Evaluation
+
+The project includes an evaluation suite for measuring retrieval and response quality.
+
+Run the complete evaluation:
 
 ```bash
 python -m eval.run_eval
 ```
 
-Results are written as structured JSON to `eval/results/eval_<timestamp>.json`.
+Run regression tests:
 
+```bash
+python -m eval.regression
+```
 
-## Project structure
+Run drift detection:
+
+```bash
+python -m eval.drift_detector
+```
+
+Generate an HTML report:
+
+```bash
+python -m eval.dashboard
+```
+
+Evaluation reports are generated under:
 
 ```
-app/
-  main.py            FastAPI app: /chat, /reset, /health
-  chain.py            Tool-calling agent (create_agent), memory + cache wiring
-  tools.py             classify_intent (deterministic) + knowledge_retrieval (RAG)
-  model.py             Pydantic request/response/domain models
-  prompts.py            System prompt + few-shot examples
-  memory.py             Redis-backed session chat history
-  cache.py               Redis-backed response cache
-  llm.py                  Shared ChatOpenAI instance
-  logging_utils.py        Structured JSON logging
-  rag/                     RAG pipeline: loaders, chunking, embeddings,
-                           vector store, hybrid retrieval, multi-query
-                           transform, cross-encoder reranking
-data/
-  knowledge_base/     Synthetic source documents (PDF/DOCX/HTML/CSV)
-  generate_sample_docs.py   One-off generator for the above
-eval/
-  dataset.py            Hand-written QA pairs grounded in the knowledge base
-  metrics.py              Ragas + LLM-judge scoring
-  run_eval.py               CLI entrypoint, writes JSON results
-frontend/
-  streamlit.py         Chat UI
+eval/results/
 ```
+
+
+
+# User Roles
+
+The system supports role-aware document access.
+
+- Customer
+- Junior Analyst
+- Senior Analyst
+- Compliance Officer
+- Administrator
+
+Each role can only retrieve documents that match its access level.
+
+---
+
+# Human-in-the-Loop (HITL)
+
+Certain high-risk actions require manual approval before execution.
+
+Typical scenarios include:
+
+- High-value transactions
+- Compliance-sensitive operations
+- Restricted customer requests
+
+Approvals can be viewed and managed through the HITL API or the Streamlit interface.
+
+---
+
+# Observability
+
+FinBot includes built-in monitoring and tracing support.
+
+- LangSmith tracing
+- Structured JSON logs
+- Custom LangChain callbacks
+- Prompt version tracking
+- Evaluation dashboards
+
+These features make it easier to debug agent behavior and monitor production deployments.
+
+---
 

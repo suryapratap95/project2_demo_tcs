@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "securebank-finbot": {
+      "command": "python",
+      "args": ["-m", "app.mcp_server.server"],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "UPSTASH_REDIS_REST_URL": "${UPSTASH_REDIS_REST_URL}",
+        "UPSTASH_REDIS_REST_TOKEN": "${UPSTASH_REDIS_REST_TOKEN}"
+      }
+    }
+  }
+}
